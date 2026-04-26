@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1045 &1
+EditorBuildSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Scenes:
+  - enabled: 0
+    path: Assets/Scenes/SampleScene.unity
+    guid: 2cda990e2423bbf4892e6590ba056729
+  - enabled: 1
+    path: Assets/Scenes/SC_Challenge.unity
+    guid: 15a8745dff3592d4c965e01190c573a7
+  - enabled: 1
+    path: Assets/Scenes/SC_Learn.unity
+    guid: 80d1fe2cb34ab6a488f23529da90dc8b
+  - enabled: 1
+    path: Assets/Scenes/SC_Progress.unity
+    guid: 0796445b7cbe6254aa29c2736b8db616
+  - enabled: 1
+    path: Assets/Scenes/SC_Setting.unity
+    guid: 006f3e178990683419fb504bdc4b7f84
+  - enabled: 1
+    path: Assets/Scenes/SC_Game.unity
+    guid: f8c28eee45c14f74a86068ebb852af3c
+  - enabled: 1
+    path: Assets/Scenes/SC_Result.unity
+    guid: e0c5edc4957f67b428dd694a1c776926
+  m_configObjects: {}
