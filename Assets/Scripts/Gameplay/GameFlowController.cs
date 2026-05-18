@@ -2,6 +2,7 @@ using System.Collections;
 using TMPro;
 using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine.SceneManagement;
 
 public class GameFlowController : MonoBehaviour
 {
@@ -220,6 +221,11 @@ public class GameFlowController : MonoBehaviour
         if (currentMeasureIndex > currentScoreModel.Measures.Count)
         {
             Debug.Log("Level Finished");
+
+            ResultData resultData = ResultCalculator.Calculate(allHitResults);
+            ResultDataHolder.Set(resultData);
+
+            UnityEngine.SceneManagement.SceneManager.LoadScene("SC_Result");
             return;
         }
 
