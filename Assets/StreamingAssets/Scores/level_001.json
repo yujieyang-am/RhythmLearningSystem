@@ -1,0 +1,51 @@
+{
+  "scoreId": "level_001",
+  "title": "Quarter and Beamed Eighth Practice",
+  "bpm": 120,
+  "timeSignature": {
+    "beatsPerMeasure": 4,
+    "beatUnit": 4
+  },
+  "measures": [
+    {
+      "measureIndex": 1,
+      "notes": [
+        { "noteId": "m1_n1", "beat": 0.0, "duration": 1.0, "noteType": "quarter" },
+        { "noteId": "m1_n2", "beat": 1.0, "duration": 1.0, "noteType": "quarter" },
+        { "noteId": "m1_n3", "beat": 2.0, "duration": 1.0, "noteType": "quarter" },
+        { "noteId": "m1_n4", "beat": 3.0, "duration": 1.0, "noteType": "quarter" }
+      ]
+    },
+    {
+      "measureIndex": 2,
+      "notes": [
+        { "noteId": "m2_n1", "beat": 0.0, "duration": 1.0, "noteType": "quarter" },
+        { "noteId": "m2_n2", "beat": 1.0, "duration": 0.5, "noteType": "eighth" },
+        { "noteId": "m2_n3", "beat": 1.5, "duration": 0.5, "noteType": "eighth" },
+        { "noteId": "m2_n4", "beat": 2.0, "duration": 1.0, "noteType": "quarter" },
+        { "noteId": "m2_n5", "beat": 3.0, "duration": 1.0, "noteType": "quarter" }
+      ]
+    },
+    {
+      "measureIndex": 3,
+      "notes": [
+        { "noteId": "m3_n1", "beat": 0.0, "duration": 0.5, "noteType": "eighth" },
+        { "noteId": "m3_n2", "beat": 0.5, "duration": 0.5, "noteType": "eighth" },
+        { "noteId": "m3_n3", "beat": 1.0, "duration": 1.0, "noteType": "quarter" },
+        { "noteId": "m3_n4", "beat": 2.0, "duration": 1.0, "noteType": "quarter" },
+        { "noteId": "m3_n5", "beat": 3.0, "duration": 1.0, "noteType": "quarter" }
+      ]
+    },
+    {
+      "measureIndex": 4,
+      "notes": [
+        { "noteId": "m4_n1", "beat": 0.0, "duration": 1.0, "noteType": "quarter" },
+        { "noteId": "m4_n2", "beat": 1.0, "duration": 0.5, "noteType": "eighth" },
+        { "noteId": "m4_n3", "beat": 1.5, "duration": 0.5, "noteType": "eighth" },
+        { "noteId": "m4_n4", "beat": 2.0, "duration": 0.5, "noteType": "eighth" },
+        { "noteId": "m4_n5", "beat": 2.5, "duration": 0.5, "noteType": "eighth" },
+        { "noteId": "m4_n6", "beat": 3.0, "duration": 1.0, "noteType": "quarter" }
+      ]
+    }
+  ]
+}
