@@ -22,9 +22,6 @@ public class GameFlowController : MonoBehaviour
     [Header("NPC")]
     [SerializeField] private NpcController npcController;
 
-    [Header("Progress Bar")]
-    [SerializeField] private UnityEngine.UI.Slider progressBar;
-
     private int selectedBpm;
     private ScoreModel currentScoreModel;
     private int currentMeasureIndex = 1;
@@ -42,7 +39,38 @@ public class GameFlowController : MonoBehaviour
     private void Start()
     {
         countdownText.gameObject.SetActive(false);
-        LoadAndRenderScore();
+
+        // 自由編譜傳入的 ScoreModel 優先
+        if (FreeComposeSessionHolder.PendingScore != null)
+        {
+            var score = FreeComposeSessionHolder.PendingScore;
+            FreeComposeSessionHolder.PendingScore = null;
+            StartWithScore(score);
+        }
+        else
+        {
+            LoadAndRenderScore();
+        }
+    }
+
+    // ── 自由編譜進入點 ──────────────────────────────
+    public void StartWithScore(ScoreModel score)
+    {
+        currentScoreModel  = score;
+        allGroups          = RenderGroupBuilder.Build(score);
+        currentMeasureIndex = 1;
+        allHitResults.Clear();
+
+        scoreRenderer.RenderMeasure(
+            currentScoreModel,
+            currentMeasureIndex,
+            GetGroupsForCurrentMeasure()
+        );
+
+        // 自由編譜沒有 BPM Slider，直接用 score 的 BPM
+        selectedBpm = Mathf.RoundToInt(score.Bpm);
+        startOverlay.SetActive(false);
+        StartCoroutine(CountdownRoutine());
     }
 
     private void Update()
@@ -53,7 +81,6 @@ public class GameFlowController : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Space))
         {
             rhythmAudioPlayer.PlayUserHitSound();
-
             npcController.TriggerGiraffeSwing();
 
             double tapDspTime = AudioSettings.dspTime;
@@ -81,9 +108,7 @@ public class GameFlowController : MonoBehaviour
         foreach (HitResult miss in missedResults)
         {
             allHitResults.Add(miss);
-            Debug.Log(
-                $"Miss: Delta {miss.DeltaTime:F3}s"
-            );
+            Debug.Log($"Miss: Delta {miss.DeltaTime:F3}s");
             missCount++;
             scoreRenderer.ApplyHitResult(miss);
         }
@@ -101,12 +126,6 @@ public class GameFlowController : MonoBehaviour
             return;
         }
 
-        Debug.Log("ScoreModel: " + currentScoreModel.Title);
-        Debug.Log("Time Signature: " +
-                  currentScoreModel.TimeSignature.BeatsPerMeasure + "/" +
-                  currentScoreModel.TimeSignature.BeatUnit);
-        Debug.Log("All Notes: " + currentScoreModel.AllNotes.Count);
-
         scoreRenderer.RenderMeasure(
             currentScoreModel,
             currentMeasureIndex,
@@ -117,9 +136,6 @@ public class GameFlowController : MonoBehaviour
     public void StartGameFlow()
     {
         selectedBpm = bpmSliderController.SelectedBpm;
-
-        Debug.Log("Start Game BPM: " + selectedBpm);
-
         startOverlay.SetActive(false);
         StartCoroutine(CountdownRoutine());
     }
@@ -148,21 +164,13 @@ public class GameFlowController : MonoBehaviour
 
     private void StartDemoPhase()
     {
-        npcController.ShowGiraffeNod();  // ← 加這行
-
-        Debug.Log("Demo Phase Start with BPM: " + selectedBpm);
+        npcController.ShowGiraffeNod();
         StartCoroutine(DemoPhaseRoutine());
     }
 
     private IEnumerator DemoPhaseRoutine()
     {
         inputPhaseActive = false;
-
-        float secondsPerBeat = 60f / selectedBpm;
-        float demoDuration = currentScoreModel.TimeSignature.BeatsPerMeasure * secondsPerBeat;
-
-        // 示範音和進度條同時跑
-        StartCoroutine(FillProgressBar(demoDuration));
 
         yield return rhythmAudioPlayer.PlayDemoMeasure(
             currentScoreModel,
@@ -183,23 +191,19 @@ public class GameFlowController : MonoBehaviour
         hitCount = 0;
         missCount = 0;
 
-        double inputStartDspTime = AudioSettings.dspTime;
+        float secondsPerBeat = 60f / selectedBpm;
+        float measureDuration = currentScoreModel.TimeSignature.BeatsPerMeasure * secondsPerBeat;
+
+        double inputStartDspTime = rhythmAudioPlayer.LastDemoStartDspTime + measureDuration;
 
         List<RenderGroupModel> groups = GetGroupsForCurrentMeasure();
         currentJudgeTargets = JudgeTargetBuilder.BuildFromRenderGroups(groups, selectedBpm);
         rhythmJudge.StartMeasure(currentJudgeTargets, inputStartDspTime);
 
-        float secondsPerBeat = 60f / selectedBpm;
-        float measureDuration = currentScoreModel.TimeSignature.BeatsPerMeasure * secondsPerBeat;
-
-        StartCoroutine(FillProgressBar(measureDuration));  // ← 加在這行，用已有的 measureDuration
-
         yield return new WaitForSeconds(measureDuration);
 
-        // 🔴 先關掉判定
         inputPhaseActive = false;
 
-        // 🔴 再補最後的 miss
         List<HitResult> finalMisses =
             rhythmJudge.CheckMissedTargets(AudioSettings.dspTime);
 
@@ -210,7 +214,6 @@ public class GameFlowController : MonoBehaviour
         }
 
         EvaluateMeasure();
-        // 🔴 最後才切下一小節
         GoToNextMeasureOrFinish();
     }
 
@@ -225,11 +228,9 @@ public class GameFlowController : MonoBehaviour
             ResultData resultData = ResultCalculator.Calculate(allHitResults);
             ResultDataHolder.Set(resultData);
 
-            UnityEngine.SceneManagement.SceneManager.LoadScene("SC_Result");
+            SceneManager.LoadScene("SC_Result");
             return;
         }
-
-        Debug.Log("Go To Measure: " + currentMeasureIndex);
 
         scoreRenderer.RenderMeasure(
             currentScoreModel,
@@ -250,9 +251,7 @@ public class GameFlowController : MonoBehaviour
                 continue;
 
             if (group.Notes[0].MeasureIndex == currentMeasureIndex)
-            {
                 result.Add(group);
-            }
         }
 
         return result;
@@ -261,46 +260,10 @@ public class GameFlowController : MonoBehaviour
     private void EvaluateMeasure()
     {
         if (missCount == 0)
-        {
             npcController.ShowPigGood();
-        }
         else if (missCount <= 2)
-        {
             npcController.ShowPigNormal();
-        }
         else
-        {
             npcController.ShowPigBad();
-        }
-    }
-
-    private IEnumerator FillProgressBar(float duration)
-    {
-        float elapsed = 0f;
-        progressBar.value = 0f;
-
-        while (elapsed < duration)
-        {
-            elapsed += Time.deltaTime;
-            progressBar.value = Mathf.Clamp01(elapsed / duration);
-            yield return null;
-        }
-
-        progressBar.value = 1f;
-    }
-
-    private IEnumerator DrainProgressBar(float duration)
-    {
-        float elapsed = 0f;
-        progressBar.value = 0f;
-
-        while (elapsed < duration)
-        {
-            elapsed += Time.deltaTime;
-            progressBar.value = Mathf.Clamp01(elapsed / duration);
-            yield return null;
-        }
-
-        progressBar.value = 1f;
     }
 }

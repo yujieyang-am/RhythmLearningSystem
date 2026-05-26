@@ -57,6 +57,8 @@ public class RhythmAudioPlayer : MonoBehaviour
         hitAudioSource.PlayOneShot(userHitClip);
     }
 
+    public double LastDemoStartDspTime { get; private set; }
+
     public IEnumerator PlayDemoMeasure(
         ScoreModel scoreModel,
         int measureIndex,
@@ -85,6 +87,7 @@ public class RhythmAudioPlayer : MonoBehaviour
 
         float secondsPerBeat = 60f / selectedBpm;
         double demoStartDspTime = AudioSettings.dspTime + scheduleDelay;
+        LastDemoStartDspTime = demoStartDspTime;  // ← 記錄精確開始時間
 
         Debug.Log("Demo audio start. Measure: " + measureIndex + ", Notes: " + measure.Notes.Count);
 
@@ -95,7 +98,6 @@ public class RhythmAudioPlayer : MonoBehaviour
             source.clip = demoClickClip;
             source.PlayScheduled(targetDspTime);
 
-            // 找到這顆 note 對應的 group
             RenderGroupModel matchedGroup = groups.Find(g =>
                 g.Notes.Contains(note)
             );

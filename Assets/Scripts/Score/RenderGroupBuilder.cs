@@ -16,41 +16,107 @@ public static class RenderGroupBuilder
         {
             var current = notes[i];
 
-            if (i + 1 < notes.Count &&
-                current.NoteType == NoteType.Eighth &&
-                notes[i + 1].NoteType == NoteType.Eighth &&
-                current.MeasureIndex == notes[i + 1].MeasureIndex &&
-                Mathf.Approximately(notes[i + 1].BeatInMeasure - current.BeatInMeasure, 0.5f))
+            // 休止符單獨成一組
+            if (current.IsRest)
             {
-                var next = notes[i + 1];
-
-                var group = new RenderGroupModel
+                groups.Add(new RenderGroupModel
                 {
-                    GroupType = RenderGroupType.BeamedEighthPair,
-                    CenterBeat = (current.BeatInMeasure + next.BeatInMeasure) / 2f
-                };
-
-                group.Notes.Add(current);
-                group.Notes.Add(next);
-
-                groups.Add(group);
-
-                i++;
+                    GroupType  = RenderGroupType.Rest,
+                    CenterBeat = current.BeatInMeasure,
+                    Notes      = { current }
+                });
+                continue;
             }
-            else
+
+            // 嘗試合成連體音符
+            RenderGroupModel beamed = TryBuildBeamedGroup(notes, i);
+            if (beamed != null)
             {
-                var group = new RenderGroupModel
-                {
-                    GroupType = RenderGroupType.Single,
-                    CenterBeat = current.BeatInMeasure
-                };
-
-                group.Notes.Add(current);
-
-                groups.Add(group);
+                groups.Add(beamed);
+                i += beamed.Notes.Count - 1;
+                continue;
             }
+
+            // 獨立音符
+            groups.Add(new RenderGroupModel
+            {
+                GroupType  = RenderGroupType.Single,
+                CenterBeat = current.BeatInMeasure,
+                Notes      = { current }
+            });
         }
 
         return groups;
+    }
+
+    private static RenderGroupModel TryBuildBeamedGroup(List<NoteModel> notes, int startIndex)
+    {
+        var first = notes[startIndex];
+
+        // 只處理八分、十六分、三十二分、三連音
+        if (first.NoteType != NoteType.Eighth &&
+            first.NoteType != NoteType.Sixteenth &&
+            first.NoteType != NoteType.ThirtySecond &&
+            first.NoteType != NoteType.TripletEighth)
+            return null;
+
+        var collected = new List<NoteModel> { first };
+        float step = ScoreConverter.GetDurationBeats(first.NoteType);
+
+        // 以拍為單位限制範圍，不允許跨越整數拍
+        float groupStartBeat = Mathf.Floor(first.BeatInMeasure);
+        float groupEndBeat   = groupStartBeat + 1f;
+
+        for (int j = startIndex + 1; j < notes.Count; j++)
+        {
+            var next = notes[j];
+
+            if (next.NoteType != first.NoteType) break;
+            if (next.MeasureIndex != first.MeasureIndex) break;
+
+            float expectedBeat = first.BeatInMeasure + step * collected.Count;
+            if (!Mathf.Approximately(next.BeatInMeasure, expectedBeat)) break;
+
+            // 不跨越整數拍
+            if (next.BeatInMeasure >= groupEndBeat) break;
+
+            collected.Add(next);
+
+            if (collected.Count == 4) break;
+        }
+
+        // 單獨一顆不合成連體
+        if (collected.Count < 2) return null;
+
+        RenderGroupType groupType = DetermineGroupType(first.NoteType, collected.Count);
+        float centerBeat = (collected[0].BeatInMeasure + collected[collected.Count - 1].BeatInMeasure) / 2f;
+
+        return new RenderGroupModel
+        {
+            GroupType  = groupType,
+            CenterBeat = centerBeat,
+            Notes      = collected
+        };
+    }
+
+    private static RenderGroupType DetermineGroupType(NoteType noteType, int count)
+    {
+        return noteType switch
+        {
+            NoteType.Eighth => count switch
+            {
+                2 => RenderGroupType.BeamedEighth2,
+                3 => RenderGroupType.BeamedEighth3,
+                _ => RenderGroupType.BeamedEighth4,
+            },
+            NoteType.Sixteenth => count switch
+            {
+                2 => RenderGroupType.BeamedSixteenth2,
+                _ => RenderGroupType.BeamedSixteenth4,
+            },
+            NoteType.ThirtySecond  => RenderGroupType.BeamedThirtySecond2,
+            NoteType.TripletEighth => RenderGroupType.Triplet,
+            _                      => RenderGroupType.Single,
+        };
     }
 }

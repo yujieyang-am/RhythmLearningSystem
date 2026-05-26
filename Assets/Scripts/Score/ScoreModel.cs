@@ -2,8 +2,28 @@ using System.Collections.Generic;
 
 public enum NoteType
 {
+    // 獨立音符
+    Whole,
+    Half,
     Quarter,
-    Eighth
+    Eighth,
+    Sixteenth,
+    ThirtySecond,
+    DottedHalf,
+    DottedQuarter,
+    DottedEighth,
+    DottedSixteenth,
+    // 三連音
+    TripletHalf,
+    TripletQuarter,
+    TripletEighth,
+    // 休止符
+    RestWhole,
+    RestHalf,
+    RestQuarter,
+    RestEighth,
+    RestSixteenth,
+    RestThirtySecond,
 }
 
 public class ScoreModel
@@ -33,17 +53,23 @@ public class NoteModel
     public string NoteId;
     public int MeasureIndex;
 
-    // 小節內第幾拍，例如 0, 1, 1.5, 2
+    // 小節內第幾拍
     public float BeatInMeasure;
 
     // 從整首開始算的第幾拍
     public float AbsoluteBeat;
 
-    // 音符時值，例如四分音符 1，八分音符 0.5
+    // 音符時值（拍數）
     public float DurationBeats;
 
     public NoteType NoteType;
 
-    // 之後示範音與判定會用
+    // 示範音與判定用
     public double TargetTimeSec;
+
+    // 自由編譜用
+    public int GridIndex;
+
+    // 休止符不產生判定點
+    public bool IsRest;
 }

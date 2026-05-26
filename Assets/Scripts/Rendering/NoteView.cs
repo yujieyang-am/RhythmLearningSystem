@@ -67,6 +67,12 @@ public class NoteView : MonoBehaviour
         }
     }
 
+    public void SetSprite(Sprite sprite)
+    {
+        if (noteImage != null)
+            noteImage.sprite = sprite;
+    }
+
     private void SetFeedbackColor(Color color)
     {
         if (feedbackGlowImage != null)
