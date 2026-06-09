@@ -1831,7 +1831,7 @@ MonoBehaviour:
   m_ScaleFactor: 1
   m_ReferenceResolution: {x: 2732, y: 2048}
   m_ScreenMatchMode: 0
-  m_MatchWidthOrHeight: 0.5
+  m_MatchWidthOrHeight: 1
   m_PhysicalUnit: 3
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
@@ -3069,7 +3069,7 @@ MonoBehaviour:
   timeSigTopText: {fileID: 1433028437}
   timeSigBottomText: {fileID: 1995861551}
   noteAreaLeftX: -800
-  noteAreaRightX: 1300
+  noteAreaRightX: 1100
   noteY: 390
   beatPadding: 0.5
 --- !u!4 &1672838416

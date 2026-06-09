@@ -8,12 +8,8 @@ public class ResultData
     public int EarlyCount;
     public int LateCount;
     public int MissCount;
-
-    public float AccuracyPercent;
-    public float AverageDeltaMs;   // ¥­§¡°¾²¾¡]²@¬í¡^
-    public float StabilityMs;      // Ã­©w«×¡]¼Ð·Ç®t¡A²@¬í¡^
-
-    public List<float> DeltaList = new List<float>(); // ¨C¦¸ºVÀ»ªº delta¡]²@¬í¡^¡AMiss ¤£ºâ
+    public float Score;
+    public List<float> DeltaList = new List<float>();
 }
 
 public static class ResultCalculator
@@ -22,8 +18,6 @@ public static class ResultCalculator
     {
         var data = new ResultData();
         data.TotalCount = results.Count;
-
-        var hitDeltas = new List<float>();
 
         foreach (var r in results)
         {
@@ -36,35 +30,16 @@ public static class ResultCalculator
             }
 
             if (r.ResultType != HitResultType.Miss)
-            {
-                float deltaMs = (float)(r.DeltaTime * 1000f);
-                hitDeltas.Add(deltaMs);
-                data.DeltaList.Add(deltaMs);
-            }
+                data.DeltaList.Add((float)(r.DeltaTime * 1000f));
         }
 
-        // Accuracy
-        int hitTotal = data.PerfectCount + data.EarlyCount + data.LateCount;
-        data.AccuracyPercent = data.TotalCount > 0
-            ? (float)hitTotal / data.TotalCount * 100f
-            : 0f;
-
-        // ¥­§¡°¾²¾
-        if (hitDeltas.Count > 0)
+        // Score è¨ˆç®—
+        if (data.TotalCount > 0)
         {
-            float sum = 0f;
-            foreach (var d in hitDeltas) sum += d;
-            data.AverageDeltaMs = sum / hitDeltas.Count;
-        }
-
-        // Ã­©w«×¡]¼Ð·Ç®t¡^
-        if (hitDeltas.Count > 1)
-        {
-            float mean = data.AverageDeltaMs;
-            float variance = 0f;
-            foreach (var d in hitDeltas)
-                variance += (d - mean) * (d - mean);
-            data.StabilityMs = Mathf.Sqrt(variance / hitDeltas.Count);
+            float pointPerNote = 100f / data.TotalCount;
+            data.Score = data.PerfectCount * pointPerNote
+                       + (data.EarlyCount + data.LateCount) * pointPerNote * 0.5f;
+            data.Score = Mathf.Clamp(data.Score, 0f, 100f);
         }
 
         return data;

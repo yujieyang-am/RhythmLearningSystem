@@ -1,332 +1,466 @@
 using System.Collections.Generic;
-using TMPro;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.SceneManagement;
+using UnityEngine.EventSystems;
+using TMPro;
 
 public class FreeComposeController : MonoBehaviour
 {
-    [Header("頂部參數")]
-    [SerializeField] private TMP_Dropdown dropdownBpm;
-    [SerializeField] private TMP_Dropdown dropdownTimeSignature;
-    [SerializeField] private TMP_Dropdown dropdownMeasureCount;
-    [SerializeField] private TMP_Dropdown dropdownRepeatCount;
+    [Header("Top Bar")]
+    public Slider bpmSlider;
+    public TextMeshProUGUI bpmLabel;
+    public TMP_Dropdown repeatDropdown;
 
-    [Header("格子區")]
-    [SerializeField] private RectTransform gridContent;
-    [SerializeField] private float cellWidth  = 30f;
-    [SerializeField] private float cellHeight = 60f;
-    [SerializeField] private float measureLabelWidth = 60f;
+    [Header("Staff Area")]
+    public RectTransform staffContainer;
+    public GameObject measureLinePrefab;
 
-    [Header("音符選板按鈕")]
-    [SerializeField] private Button btnWhole;
-    [SerializeField] private Button btnHalf;
-    [SerializeField] private Button btnDottedHalf;
-    [SerializeField] private Button btnQuarter;
-    [SerializeField] private Button btnDottedQuarter;
-    [SerializeField] private Button btnEighth;
-    [SerializeField] private Button btnDottedEighth;
-    [SerializeField] private Button btnSixteenth;
-    [SerializeField] private Button btnDottedSixteenth;
-    [SerializeField] private Button btnThirtySecond;
-    [SerializeField] private Button btnBeamedEighth2;
-    [SerializeField] private Button btnBeamedEighth3;
-    [SerializeField] private Button btnBeamedEighth4;
-    [SerializeField] private Button btnBeamedSixteenth2;
-    [SerializeField] private Button btnBeamedSixteenth4;
-    [SerializeField] private Button btnBeamedThirtySecond2;
-    [SerializeField] private Button btnTriplet;
-    [SerializeField] private Button btnRestQuarter;
-    [SerializeField] private Button btnRestEighth;
-    [SerializeField] private Button btnEraser;
+    [Header("Note Palette")]
+    public Button[] paletteButtons;
+    public Sprite[] paletteSprites;
 
-    [Header("音符 Sprites（選板顯示用）")]
-    [SerializeField] private Sprite spriteWhole;
-    [SerializeField] private Sprite spriteHalf;
-    [SerializeField] private Sprite spriteDottedHalf;
-    [SerializeField] private Sprite spriteQuarter;
-    [SerializeField] private Sprite spriteDottedQuarter;
-    [SerializeField] private Sprite spriteEighth;
-    [SerializeField] private Sprite spriteDottedEighth;
-    [SerializeField] private Sprite spriteSixteenth;
-    [SerializeField] private Sprite spriteDottedSixteenth;
-    [SerializeField] private Sprite spriteThirtySecond;
-    [SerializeField] private Sprite spriteBeamedEighth2;
-    [SerializeField] private Sprite spriteBeamedEighth3;
-    [SerializeField] private Sprite spriteBeamedEighth4;
-    [SerializeField] private Sprite spriteBeamedSixteenth2;
-    [SerializeField] private Sprite spriteBeamedSixteenth4;
-    [SerializeField] private Sprite spriteBeamedThirtySecond2;
-    [SerializeField] private Sprite spriteTriplet;
-    [SerializeField] private Sprite spriteRestQuarter;
-    [SerializeField] private Sprite spriteRestEighth;
+    [Header("Drag Ghost")]
+    public Image dragGhostImage;
 
-    [Header("底部按鈕")]
-    [SerializeField] private Button btnClear;
-    [SerializeField] private Button btnStartPractice;
-    [SerializeField] private Button btnPreview;
+    [Header("Bottom Bar")]
+    public Button clearButton;
+    public Button startButton;
 
-    [Header("格子 Prefab")]
-    [SerializeField] private Button cellPrefab;
+    [Header("Note Sprites - 根目錄")]
+    public Sprite sp_Whole;
+    public Sprite sp_Half;
+    public Sprite sp_Quarter;
+    public Sprite sp_Eighth;
+    public Sprite sp_Sixteenth;
+    public Sprite sp_ThirtySecond;
+    public Sprite sp_DottedHalf;
+    public Sprite sp_DottedQuarter;
+    public Sprite sp_DottedEighth;
+    public Sprite sp_DottedSixteenth;
 
-    private FreeComposeData currentData = new FreeComposeData();
-    private NoteType? selectedNoteType  = null;
-    private bool isEraserMode           = false;
+    [Header("Note Sprites - 休止符 (partnew)")]
+    public Sprite sp_RestWhole;
+    public Sprite sp_RestHalf;
+    public Sprite sp_RestQuarter;
+    public Sprite sp_RestEighth;
+    public Sprite sp_RestSixteenth;
+    public Sprite sp_RestThirtySecond;
 
-    private Dictionary<string, Button> cellButtons = new Dictionary<string, Button>();
+    [Header("Note Sprites - 連體 (partnew)")]
+    public Sprite sp_Beamed8x2;
+    public Sprite sp_Beamed8x3;
+    public Sprite sp_Beamed8x4;
+    public Sprite sp_Beamed16x2;
+    public Sprite sp_Beamed16x4;
 
-    private readonly int[] bpmOptions = { 60, 70, 80, 90, 100, 120 };
+    private FreeComposeData _data = new();
+    private NoteType _selectedNoteType = NoteType.Quarter;
+    private bool _isDragging = false;
+    private Sprite _dragSprite;
+    private List<MeasureStaffView> _measureViews = new();
+    private Dictionary<int, int> _beamedGroupStarts = new();
 
-    private void Start()
+    private static readonly NoteType[] PaletteNoteTypes = new NoteType[]
     {
-        SetupDropdowns();
-        SetupNoteButtons();
-        SetupBottomButtons();
-        RebuildGrid();
+        NoteType.Whole,           // 0
+        NoteType.Half,            // 1
+        NoteType.Quarter,         // 2
+        NoteType.Eighth,          // 3
+        NoteType.Sixteenth,       // 4
+        NoteType.ThirtySecond,    // 5
+        NoteType.DottedHalf,      // 6
+        NoteType.DottedQuarter,   // 7
+        NoteType.DottedEighth,    // 8
+        NoteType.DottedSixteenth, // 9
+        NoteType.RestWhole,       // 10
+        NoteType.RestHalf,        // 11
+        NoteType.RestQuarter,     // 12
+        NoteType.RestEighth,      // 13
+        NoteType.RestSixteenth,   // 14
+        NoteType.RestThirtySecond,// 15
+        NoteType.Eighth,          // 16 連體八分乘二
+        NoteType.Eighth,          // 17 連體八分乘三
+        NoteType.Eighth,          // 18 連體八分乘四
+        NoteType.Sixteenth,       // 19 連體十六分乘二
+        NoteType.Sixteenth,       // 20 連體十六分乘四
+    };
+
+    private static readonly Dictionary<int, int> BeamedPaletteCount = new()
+    {
+        { 16, 2 }, { 17, 3 }, { 18, 4 }, { 19, 2 }, { 20, 4 }
+    };
+
+    private int _selectedPaletteIndex = 2;
+    private int _beamedCount = 1;
+
+    // ── 初始化 ────────────────────────────────────────────
+
+    void Start()
+    {
+        InitBpmSlider();
+        InitRepeatDropdown();
+        InitPalette();
+        InitStaff();
+        InitButtons();
+        dragGhostImage.gameObject.SetActive(false);
     }
 
-    private void SetupDropdowns()
+    void InitBpmSlider()
     {
-        dropdownBpm.ClearOptions();
-        var bpmList = new List<string>();
-        foreach (var b in bpmOptions) bpmList.Add(b.ToString());
-        dropdownBpm.AddOptions(bpmList);
-        dropdownBpm.value = 2;
-        dropdownBpm.onValueChanged.AddListener(_ => OnSettingChanged());
-
-        dropdownTimeSignature.ClearOptions();
-        dropdownTimeSignature.AddOptions(new List<string> { "4/4", "3/4", "6/8" });
-        dropdownTimeSignature.onValueChanged.AddListener(_ => OnSettingChanged());
-
-        dropdownMeasureCount.ClearOptions();
-        dropdownMeasureCount.AddOptions(new List<string> { "1", "2", "4", "8" });
-        dropdownMeasureCount.value = 1;
-        dropdownMeasureCount.onValueChanged.AddListener(_ => OnSettingChanged());
-
-        dropdownRepeatCount.ClearOptions();
-        dropdownRepeatCount.AddOptions(new List<string> { "1", "2", "3", "4" });
-        dropdownRepeatCount.onValueChanged.AddListener(_ => OnSettingChanged());
-    }
-
-    private void OnSettingChanged()
-    {
-        currentData.Bpm             = bpmOptions[dropdownBpm.value];
-        currentData.BeatsPerMeasure = GetBeatsPerMeasure();
-        currentData.MeasureCount    = GetMeasureCount();
-        currentData.RepeatCount     = dropdownRepeatCount.value + 1;
-        RebuildGrid();
-    }
-
-    private int GetBeatsPerMeasure()
-    {
-        return dropdownTimeSignature.value switch
+        bpmSlider.minValue = 40;
+        bpmSlider.maxValue = 200;
+        bpmSlider.value = _data.Bpm;
+        bpmSlider.onValueChanged.AddListener(v =>
         {
-            1 => 3,
-            2 => 6,
-            _ => 4,
-        };
-    }
-
-    private int GetMeasureCount()
-    {
-        return dropdownMeasureCount.value switch
-        {
-            0 => 1,
-            1 => 2,
-            2 => 4,
-            _ => 8,
-        };
-    }
-
-    private void SetupNoteButtons()
-    {
-        SetupNoteBtn(btnWhole,               NoteType.Whole,          spriteWhole);
-        SetupNoteBtn(btnHalf,                NoteType.Half,           spriteHalf);
-        SetupNoteBtn(btnDottedHalf,          NoteType.DottedHalf,     spriteDottedHalf);
-        SetupNoteBtn(btnQuarter,             NoteType.Quarter,        spriteQuarter);
-        SetupNoteBtn(btnDottedQuarter,       NoteType.DottedQuarter,  spriteDottedQuarter);
-        SetupNoteBtn(btnEighth,              NoteType.Eighth,         spriteEighth);
-        SetupNoteBtn(btnDottedEighth,        NoteType.DottedEighth,   spriteDottedEighth);
-        SetupNoteBtn(btnSixteenth,           NoteType.Sixteenth,      spriteSixteenth);
-        SetupNoteBtn(btnDottedSixteenth,     NoteType.DottedSixteenth,spriteDottedSixteenth);
-        SetupNoteBtn(btnThirtySecond,        NoteType.ThirtySecond,   spriteThirtySecond);
-        SetupNoteBtn(btnBeamedEighth2,       NoteType.Eighth,         spriteBeamedEighth2);
-        SetupNoteBtn(btnBeamedEighth3,       NoteType.Eighth,         spriteBeamedEighth3);
-        SetupNoteBtn(btnBeamedEighth4,       NoteType.Eighth,         spriteBeamedEighth4);
-        SetupNoteBtn(btnBeamedSixteenth2,    NoteType.Sixteenth,      spriteBeamedSixteenth2);
-        SetupNoteBtn(btnBeamedSixteenth4,    NoteType.Sixteenth,      spriteBeamedSixteenth4);
-        SetupNoteBtn(btnBeamedThirtySecond2, NoteType.ThirtySecond,   spriteBeamedThirtySecond2);
-        SetupNoteBtn(btnTriplet,             NoteType.TripletEighth,  spriteTriplet);
-        SetupNoteBtn(btnRestQuarter,         NoteType.RestQuarter,    spriteRestQuarter);
-        SetupNoteBtn(btnRestEighth,          NoteType.RestEighth,     spriteRestEighth);
-
-        btnEraser.onClick.AddListener(() =>
-        {
-            isEraserMode     = true;
-            selectedNoteType = null;
+            _data.Bpm = Mathf.Round(v);
+            bpmLabel.text = $"BPM {_data.Bpm:0}";
         });
+        bpmLabel.text = $"BPM {_data.Bpm:0}";
     }
 
-    private void SetupNoteBtn(Button btn, NoteType noteType, Sprite sprite)
+    void InitRepeatDropdown()
     {
-        if (btn == null) return;
-        var img = btn.GetComponent<Image>();
-        if (img != null && sprite != null) img.sprite = sprite;
-        btn.onClick.AddListener(() =>
+        repeatDropdown.ClearOptions();
+        repeatDropdown.AddOptions(new List<string> { "x1", "x2", "x3", "x4" });
+        repeatDropdown.value = 0;
+        repeatDropdown.onValueChanged.AddListener(v => _data.RepeatCount = v + 1);
+    }
+
+    void InitPalette()
+    {
+        for (int i = 0; i < paletteButtons.Length; i++)
         {
-            selectedNoteType = noteType;
-            isEraserMode     = false;
-        });
-    }
-
-    private void SetupBottomButtons()
-    {
-        btnClear.onClick.AddListener(OnClearClicked);
-        btnStartPractice.onClick.AddListener(OnStartPracticeClicked);
-        btnPreview.onClick.AddListener(OnPreviewClicked);
-    }
-
-    private void OnClearClicked()
-    {
-        currentData.Cells.Clear();
-        RefreshAllCells();
-    }
-
-    private void OnStartPracticeClicked()
-    {
-        if (currentData.Cells.Count == 0)
-        {
-            Debug.LogWarning("請先放入至少一個音符");
-            return;
+            int idx = i;
+            paletteButtons[i].onClick.AddListener(() => SelectPalette(idx));
+            if (i < paletteSprites.Length && paletteSprites[i] != null)
+                paletteButtons[i].GetComponent<Image>().sprite = paletteSprites[i];
         }
-        var score = FreeComposeConverter.Convert(currentData);
-        FreeComposeSessionHolder.PendingScore = score;
-        FreeComposeSessionHolder.SourceData   = currentData;
-        SceneManager.LoadScene("SC_Game");
+        SelectPalette(2);
     }
 
-    private void OnPreviewClicked()
+    void SelectPalette(int idx)
     {
-        Debug.Log("Preview - 待實作");
-    }
+        _selectedPaletteIndex = idx;
+        _selectedNoteType = PaletteNoteTypes[idx];
+        _beamedCount = BeamedPaletteCount.ContainsKey(idx) ? BeamedPaletteCount[idx] : 1;
+        _dragSprite = idx < paletteSprites.Length ? paletteSprites[idx] : null;
 
-    private void RebuildGrid()
-    {
-        foreach (Transform child in gridContent)
-            Destroy(child.gameObject);
-        cellButtons.Clear();
-
-        float totalHeight = (cellHeight + 10f) * currentData.MeasureCount;
-        float totalWidth  = measureLabelWidth + cellWidth * ScoreConverter.GRID_RESOLUTION;
-        gridContent.sizeDelta = new Vector2(totalWidth, totalHeight);
-
-        for (int m = 0; m < currentData.MeasureCount; m++)
+        for (int i = 0; i < paletteButtons.Length; i++)
         {
-            float yOffset = -(m * (cellHeight + 10f)) - cellHeight / 2f;
+            var colors = paletteButtons[i].colors;
+            colors.normalColor = (i == idx) ? new Color(1f, 0.85f, 0.3f) : Color.white;
+            paletteButtons[i].colors = colors;
+        }
+    }
 
-            // 小節標籤
-            var label = new GameObject("Label_" + m);
-            label.transform.SetParent(gridContent, false);
-            var labelRect = label.AddComponent<RectTransform>();
-            var labelText = label.AddComponent<TextMeshProUGUI>();
-            labelRect.sizeDelta        = new Vector2(measureLabelWidth, cellHeight);
-            labelRect.anchorMin        = new Vector2(0, 1f);
-            labelRect.anchorMax        = new Vector2(0, 1f);
-            labelRect.anchoredPosition = new Vector2(measureLabelWidth / 2f, yOffset);
-            labelText.text      = $"M{m + 1}";
-            labelText.alignment = TextAlignmentOptions.Center;
-            labelText.fontSize  = 14;
+    void InitStaff()
+    {
+        _measureViews.Clear();
+        var children = staffContainer.Cast<Transform>().ToList();
+        foreach (var t in children)
+            Destroy(t.gameObject);
 
-            // 32 個格子
-            for (int g = 0; g < ScoreConverter.GRID_RESOLUTION; g++)
-            {
-                string key  = $"{m}-{g}";
-                var    cell = Instantiate(cellPrefab, gridContent);
-                var    rect = cell.GetComponent<RectTransform>();
+        for (int m = 0; m < FreeComposeData.MEASURES; m++)
+        {
+            var go = Instantiate(measureLinePrefab, staffContainer);
+            var view = go.GetComponent<MeasureStaffView>();
+            view.Init(m, this);
+            _measureViews.Add(view);
+        }
+    }
 
-                rect.sizeDelta        = new Vector2(cellWidth, cellHeight);
-                rect.anchorMin        = new Vector2(0, 1f);
-                rect.anchorMax        = new Vector2(0, 1f);
-                rect.anchoredPosition = new Vector2(
-                    measureLabelWidth + g * cellWidth + cellWidth / 2f,
-                    yOffset
-                );
+    void InitButtons()
+    {
+        clearButton.onClick.AddListener(OnClearClicked);
+        startButton.onClick.AddListener(OnStartClicked);
+    }
 
-                cell.GetComponent<Image>().color = (g % 8 == 0)
-                    ? new Color(0.7f, 0.7f, 0.9f)
-                    : new Color(0.9f, 0.9f, 0.9f);
+    // ── 放音符 ────────────────────────────────────────────
 
-                string capturedKey = key;
-                cell.onClick.AddListener(() => OnCellClicked(capturedKey));
-                cellButtons[key] = cell;
-            }
+    public bool TryPlaceNote(int measureIndex, int gridInMeasure)
+    {
+        int noteGridLen = GetGridLength(_selectedNoteType);
+        int totalGridNeeded = noteGridLen * _beamedCount;
+        int measureStart = measureIndex * FreeComposeData.GRID_RESOLUTION;
+
+        // 找這個小節目前所有音符中，結束位置最右的一個
+        int nextAvailableGrid = 0;
+        foreach (var kv in _data.PlacedNotes)
+        {
+            if (kv.Key < measureStart || kv.Key >= measureStart + FreeComposeData.GRID_RESOLUTION) continue;
+            int endGrid = (kv.Key - measureStart) + GetGridLength(kv.Value);
+            if (endGrid > nextAvailableGrid)
+                nextAvailableGrid = endGrid;
         }
 
-        RefreshAllCells();
-    }
-
-    private void OnCellClicked(string key)
-    {
-        if (isEraserMode)
+        // 檢查放得下
+        if (nextAvailableGrid + totalGridNeeded > FreeComposeData.GRID_RESOLUTION)
         {
-            currentData.Cells.Remove(key);
-            UpdateCellVisual(key);
-            return;
+            ShowRejectFeedback("小節已滿（超過 4 拍）");
+            return false;
         }
 
-        if (selectedNoteType == null) return;
+        int globalGrid = measureStart + nextAvailableGrid;
 
-        var parts        = key.Split('-');
-        int measureIndex = int.Parse(parts[0]);
-        int gridIndex    = int.Parse(parts[1]);
-        int span         = ScoreConverter.GetGridSpan(selectedNoteType.Value);
-
-        if (gridIndex + span > ScoreConverter.GRID_RESOLUTION)
+        // 放入
+        if (_beamedCount > 1)
         {
-            Debug.LogWarning("音符超出小節範圍");
-            return;
+            for (int i = 0; i < _beamedCount; i++)
+                _data.PlacedNotes[globalGrid + i * noteGridLen] = _selectedNoteType;
+            _beamedGroupStarts[globalGrid] = _beamedCount;
         }
-
-        currentData.Cells[key] = selectedNoteType.Value;
-        UpdateCellVisual(key);
-    }
-
-    private void RefreshAllCells()
-    {
-        foreach (var key in cellButtons.Keys)
-            UpdateCellVisual(key);
-    }
-
-    private void UpdateCellVisual(string key)
-    {
-        if (!cellButtons.TryGetValue(key, out Button cell)) return;
-
-        var img = cell.GetComponent<Image>();
-
-        if (currentData.Cells.TryGetValue(key, out NoteType noteType))
-            img.color = GetNoteColor(noteType);
         else
         {
-            var parts = key.Split('-');
-            int g     = int.Parse(parts[1]);
-            img.color = (g % 8 == 0)
-                ? new Color(0.7f, 0.7f, 0.9f)
-                : new Color(0.9f, 0.9f, 0.9f);
+            _data.PlacedNotes[globalGrid] = _selectedNoteType;
+        }
+
+        RefreshMeasureView(measureIndex);
+        return true;
+    }
+
+    // ── 移除音符 ──────────────────────────────────────────
+
+    public void RemoveNote(int measureIndex, int gridInMeasure)
+    {
+        int globalGrid = measureIndex * FreeComposeData.GRID_RESOLUTION + gridInMeasure;
+
+        if (!_data.PlacedNotes.TryGetValue(globalGrid, out var noteType))
+            return;
+
+        int removedGridLen;
+        int shiftFromGlobalGrid; // 從這個位置之後的音符要往左移
+
+        if (_beamedGroupStarts.TryGetValue(globalGrid, out int beamedCount))
+        {
+            // 刪掉整組連體
+            int noteGridLen = GetGridLength(noteType);
+            removedGridLen = noteGridLen * beamedCount;
+            for (int i = 0; i < beamedCount; i++)
+                _data.PlacedNotes.Remove(globalGrid + i * noteGridLen);
+            _beamedGroupStarts.Remove(globalGrid);
+            shiftFromGlobalGrid = globalGrid;
+        }
+        else if (IsBeamedChild(globalGrid, out int groupStart, out int groupCount, out NoteType groupType))
+        {
+            // 點到連體子音符，刪掉整組
+            int noteGridLen = GetGridLength(groupType);
+            removedGridLen = noteGridLen * groupCount;
+            for (int i = 0; i < groupCount; i++)
+                _data.PlacedNotes.Remove(groupStart + i * noteGridLen);
+            _beamedGroupStarts.Remove(groupStart);
+            shiftFromGlobalGrid = groupStart; // 從連體起點開始往右移
+        }
+        else
+        {
+            // 普通音符
+            removedGridLen = GetGridLength(noteType);
+            _data.PlacedNotes.Remove(globalGrid);
+            shiftFromGlobalGrid = globalGrid;
+        }
+
+        // 把右邊所有音符往左移，補上空位
+        ShiftNotesLeft(measureIndex, shiftFromGlobalGrid, removedGridLen);
+
+        RefreshMeasureView(measureIndex);
+    }
+
+    // ── 往左移位 ──────────────────────────────────────────
+
+    void ShiftNotesLeft(int measureIndex, int fromGlobalGrid, int shiftAmount)
+    {
+        int measureEnd = measureIndex * FreeComposeData.GRID_RESOLUTION + FreeComposeData.GRID_RESOLUTION;
+
+        // 收集需要移動的音符（在 fromGlobalGrid 右邊），由左到右排序
+        var toMove = _data.PlacedNotes
+            .Where(kv => kv.Key > fromGlobalGrid && kv.Key < measureEnd)
+            .OrderBy(kv => kv.Key)
+            .ToList();
+
+        foreach (var kv in toMove)
+        {
+            _data.PlacedNotes.Remove(kv.Key);
+            _data.PlacedNotes[kv.Key - shiftAmount] = kv.Value;
+        }
+
+        // 同步移動 _beamedGroupStarts
+        var beamedToMove = _beamedGroupStarts
+            .Where(kv => kv.Key > fromGlobalGrid && kv.Key < measureEnd)
+            .OrderBy(kv => kv.Key)
+            .ToList();
+
+        foreach (var kv in beamedToMove)
+        {
+            _beamedGroupStarts.Remove(kv.Key);
+            _beamedGroupStarts[kv.Key - shiftAmount] = kv.Value;
         }
     }
 
-    private Color GetNoteColor(NoteType t)
+    // ── 連體子音符判斷 ────────────────────────────────────
+
+    bool IsBeamedChild(int grid, out int groupStart, out int groupCount, out NoteType groupType)
     {
-        if (ScoreConverter.IsRestType(t))
-            return new Color(0.7f, 0.7f, 0.7f);
-        if (t == NoteType.Whole || t == NoteType.Half || t == NoteType.DottedHalf)
-            return new Color(1f, 0.9f, 0.4f);
-        if (t == NoteType.Quarter || t == NoteType.DottedQuarter)
-            return new Color(0.4f, 0.6f, 1f);
-        if (t == NoteType.Eighth || t == NoteType.DottedEighth)
-            return new Color(0.4f, 0.9f, 0.5f);
-        if (t == NoteType.TripletEighth)
-            return new Color(0.9f, 0.5f, 0.9f);
-        return new Color(0.4f, 0.85f, 0.85f);
+        foreach (var kv in _beamedGroupStarts)
+        {
+            int start = kv.Key;
+            int count = kv.Value;
+            if (!_data.PlacedNotes.TryGetValue(start, out groupType)) continue;
+            int len = GetGridLength(groupType);
+            for (int i = 1; i < count; i++) // i 從 1 開始，起點本身不算子音符
+            {
+                if (start + i * len == grid)
+                {
+                    groupStart = start;
+                    groupCount = count;
+                    return true;
+                }
+            }
+        }
+        groupStart = -1;
+        groupCount = 0;
+        groupType = NoteType.Quarter;
+        return false;
+    }
+
+    // ── 時值轉格數 ────────────────────────────────────────
+
+    public static int GetGridLength(NoteType type)
+    {
+        return type switch
+        {
+            NoteType.Whole            => 32,
+            NoteType.Half             => 16,
+            NoteType.DottedHalf       => 24,
+            NoteType.Quarter          => 8,
+            NoteType.DottedQuarter    => 12,
+            NoteType.Eighth           => 4,
+            NoteType.DottedEighth     => 6,
+            NoteType.Sixteenth        => 2,
+            NoteType.DottedSixteenth  => 3,
+            NoteType.ThirtySecond     => 1,
+            NoteType.RestWhole        => 32,
+            NoteType.RestHalf         => 16,
+            NoteType.RestQuarter      => 8,
+            NoteType.RestEighth       => 4,
+            NoteType.RestSixteenth    => 2,
+            NoteType.RestThirtySecond => 1,
+            _ => 8
+        };
+    }
+
+    // ── 刷新視覺 ──────────────────────────────────────────
+
+    void RefreshMeasureView(int measureIndex)
+    {
+        if (measureIndex < _measureViews.Count)
+            _measureViews[measureIndex].Refresh(_data, _beamedGroupStarts, GetSpriteForNote);
+    }
+
+    void RefreshAllViews()
+    {
+        for (int m = 0; m < _measureViews.Count; m++)
+            RefreshMeasureView(m);
+    }
+
+    // ── Sprite 取得 ───────────────────────────────────────
+
+    public Sprite GetSpriteForNote(NoteType type, int globalGrid)
+    {
+        if (type == NoteType.Eighth || type == NoteType.Sixteenth)
+        {
+            if (_beamedGroupStarts.TryGetValue(globalGrid, out int count))
+            {
+                if (type == NoteType.Eighth)
+                {
+                    if (count == 2) return sp_Beamed8x2;
+                    if (count == 3) return sp_Beamed8x3;
+                    if (count >= 4) return sp_Beamed8x4;
+                }
+                else
+                {
+                    if (count == 2) return sp_Beamed16x2;
+                    if (count >= 4) return sp_Beamed16x4;
+                }
+            }
+            // 連體子音符不顯示（由起點的連體圖示代表整組）
+            if (IsBeamedChild(globalGrid, out _, out _, out _))
+                return null;
+        }
+
+        return type switch
+        {
+            NoteType.Whole            => sp_Whole,
+            NoteType.Half             => sp_Half,
+            NoteType.Quarter          => sp_Quarter,
+            NoteType.Eighth           => sp_Eighth,
+            NoteType.Sixteenth        => sp_Sixteenth,
+            NoteType.ThirtySecond     => sp_ThirtySecond,
+            NoteType.DottedHalf       => sp_DottedHalf,
+            NoteType.DottedQuarter    => sp_DottedQuarter,
+            NoteType.DottedEighth     => sp_DottedEighth,
+            NoteType.DottedSixteenth  => sp_DottedSixteenth,
+            NoteType.RestWhole        => sp_RestWhole,
+            NoteType.RestHalf         => sp_RestHalf,
+            NoteType.RestQuarter      => sp_RestQuarter,
+            NoteType.RestEighth       => sp_RestEighth,
+            NoteType.RestSixteenth    => sp_RestSixteenth,
+            NoteType.RestThirtySecond => sp_RestThirtySecond,
+            _ => sp_Quarter
+        };
+    }
+
+    // ── Drag Ghost ────────────────────────────────────────
+
+    void Update()
+    {
+        if (_isDragging && dragGhostImage.gameObject.activeSelf)
+        {
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                dragGhostImage.canvas.GetComponent<RectTransform>(),
+                Input.mousePosition, null,
+                out Vector2 localPos);
+            dragGhostImage.rectTransform.anchoredPosition = localPos;
+        }
+    }
+
+    public void BeginDrag()
+    {
+        if (_dragSprite == null) return;
+        _isDragging = true;
+        dragGhostImage.sprite = _dragSprite;
+        dragGhostImage.gameObject.SetActive(true);
+    }
+
+    public void EndDrag()
+    {
+        _isDragging = false;
+        dragGhostImage.gameObject.SetActive(false);
+    }
+
+    // ── Bottom Bar ────────────────────────────────────────
+
+    void OnClearClicked()
+    {
+        _data.PlacedNotes.Clear();
+        _beamedGroupStarts.Clear();
+        RefreshAllViews();
+    }
+
+    void OnStartClicked()
+    {
+        if (_data.PlacedNotes.Count == 0)
+        {
+            ShowRejectFeedback("請先放入音符");
+            return;
+        }
+
+        var score = FreeComposeConverter.Convert(_data);
+        FreeComposeSessionHolder.PendingScore = score;
+        UnityEngine.SceneManagement.SceneManager.LoadScene("SC_Game");
+    }
+
+    void ShowRejectFeedback(string msg)
+    {
+        Debug.LogWarning($"[FreeCompose] 拒絕放入：{msg}");
     }
 }

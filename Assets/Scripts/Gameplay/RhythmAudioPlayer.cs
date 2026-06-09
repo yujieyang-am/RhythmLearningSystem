@@ -57,13 +57,22 @@ public class RhythmAudioPlayer : MonoBehaviour
         hitAudioSource.PlayOneShot(userHitClip);
     }
 
+    // 預備拍用：在指定 DSP 時間播一聲 click
+    public void ScheduleClickSound(double dspTime)
+    {
+        AudioSource source = GetNextDemoSource();
+        source.clip = demoClickClip;
+        source.PlayScheduled(dspTime);
+    }
+
     public double LastDemoStartDspTime { get; private set; }
 
     public IEnumerator PlayDemoMeasure(
         ScoreModel scoreModel,
         int measureIndex,
         int selectedBpm,
-        List<RenderGroupModel> groups)
+        List<RenderGroupModel> groups,
+        double demoStartDsp = -1)
     {
         if (scoreModel == null)
         {
@@ -86,8 +95,13 @@ public class RhythmAudioPlayer : MonoBehaviour
         }
 
         float secondsPerBeat = 60f / selectedBpm;
-        double demoStartDspTime = AudioSettings.dspTime + scheduleDelay;
-        LastDemoStartDspTime = demoStartDspTime;  // ← 記錄精確開始時間
+
+        // 如果外部傳入了精確的開始時間就用它，否則自己排程
+        double demoStartDspTime = (demoStartDsp > 0)
+            ? demoStartDsp
+            : AudioSettings.dspTime + scheduleDelay;
+
+        LastDemoStartDspTime = demoStartDspTime;
 
         Debug.Log("Demo audio start. Measure: " + measureIndex + ", Notes: " + measure.Notes.Count);
 

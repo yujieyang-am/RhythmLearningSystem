@@ -144,31 +144,42 @@ public class GameFlowController : MonoBehaviour
     {
         countdownText.gameObject.SetActive(true);
 
-        yield return ShowNumber("3");
-        yield return ShowNumber("2");
-        yield return ShowNumber("1");
+        float secondsPerBeat = 60f / selectedBpm;
+        double countdownStartDsp = AudioSettings.dspTime + 0.1;
 
-        countdownText.text = "GO";
-        yield return new WaitForSeconds(1f);
+        // 排程三聲 click（DSP 精確）
+        for (int i = 0; i < 3; i++)
+        {
+            double clickTime = countdownStartDsp + i * secondsPerBeat;
+            rhythmAudioPlayer.ScheduleClickSound(clickTime);
+        }
+
+        // 視覺顯示 3→2→1
+        string[] counts = { "3", "2", "1" };
+        for (int i = 0; i < 3; i++)
+        {
+            double waitUntil = countdownStartDsp + i * secondsPerBeat;
+            while (AudioSettings.dspTime < waitUntil)
+                yield return null;
+            countdownText.text = counts[i];
+        }
+
+        // 等到第三拍結束，第四拍銜接示範音
+        double demoStartDsp = countdownStartDsp + 3 * secondsPerBeat;
+        while (AudioSettings.dspTime < demoStartDsp)
+            yield return null;
 
         countdownText.gameObject.SetActive(false);
-
-        StartDemoPhase();
+        StartDemoPhase(demoStartDsp);
     }
 
-    private IEnumerator ShowNumber(string num)
-    {
-        countdownText.text = num;
-        yield return new WaitForSeconds(1f);
-    }
-
-    private void StartDemoPhase()
+    private void StartDemoPhase(double demoStartDsp = -1)
     {
         npcController.ShowGiraffeNod();
-        StartCoroutine(DemoPhaseRoutine());
+        StartCoroutine(DemoPhaseRoutine(demoStartDsp));
     }
 
-    private IEnumerator DemoPhaseRoutine()
+    private IEnumerator DemoPhaseRoutine(double demoStartDsp = -1)
     {
         inputPhaseActive = false;
 
@@ -176,7 +187,8 @@ public class GameFlowController : MonoBehaviour
             currentScoreModel,
             currentMeasureIndex,
             selectedBpm,
-            GetGroupsForCurrentMeasure()
+            GetGroupsForCurrentMeasure(),
+            demoStartDsp
         );
 
         StartCoroutine(InputPhaseRoutine());

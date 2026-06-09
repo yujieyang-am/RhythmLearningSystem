@@ -5,91 +5,75 @@ public static class FreeComposeConverter
 {
     public static ScoreModel Convert(FreeComposeData data)
     {
-        float spb = 60f / data.Bpm;
-        var notes = new List<NoteModel>();
-
-        foreach (var kv in data.Cells)
-        {
-            // 跳過休止符
-            if (ScoreConverter.IsRestType(kv.Value)) continue;
-
-            var parts        = kv.Key.Split('-');
-            int measureIndex = int.Parse(parts[0]);
-            int gridIndex    = int.Parse(parts[1]);
-
-            float ab = ScoreConverter.GridToAbsoluteBeat(
-                           measureIndex, gridIndex, data.BeatsPerMeasure);
-
-            notes.Add(new NoteModel
-            {
-                NoteType      = kv.Value,
-                AbsoluteBeat  = ab,
-                TargetTimeSec = ab * spb,
-                DurationBeats = ScoreConverter.GetDurationBeats(kv.Value),
-                MeasureIndex  = measureIndex,
-                GridIndex     = gridIndex,
-                BeatInMeasure = ScoreConverter.GridToAbsoluteBeat(0, gridIndex, data.BeatsPerMeasure),
-                IsRest        = false,
-            });
-        }
-
-        // 重複次數
-        if (data.RepeatCount > 1)
-        {
-            float totalBeats = data.MeasureCount * data.BeatsPerMeasure;
-            var origNotes = new List<NoteModel>(notes);
-
-            for (int r = 1; r < data.RepeatCount; r++)
-            {
-                float offset = totalBeats * r;
-                foreach (var n in origNotes)
-                {
-                    notes.Add(new NoteModel
-                    {
-                        NoteType      = n.NoteType,
-                        AbsoluteBeat  = n.AbsoluteBeat + offset,
-                        TargetTimeSec = (n.AbsoluteBeat + offset) * spb,
-                        DurationBeats = n.DurationBeats,
-                        MeasureIndex  = n.MeasureIndex + data.MeasureCount * r,
-                        GridIndex     = n.GridIndex,
-                        BeatInMeasure = n.BeatInMeasure,
-                        IsRest        = false,
-                    });
-                }
-            }
-        }
-
-        notes.Sort((a, b) => a.AbsoluteBeat.CompareTo(b.AbsoluteBeat));
-
-        // 組成 ScoreModel
-        var model = new ScoreModel
+        var score = new ScoreModel
         {
             ScoreId = "free_compose",
-            Title   = "Free Compose",
-            Bpm     = data.Bpm,
+            Title = "自由編譜",
+            Bpm = data.Bpm,
             TimeSignature = new TimeSignatureModel
             {
-                BeatsPerMeasure = data.BeatsPerMeasure,
-                BeatUnit        = 4
-            }
+                BeatsPerMeasure = FreeComposeData.BEATS_PER_MEASURE,
+                BeatUnit = 4
+            },
+            Measures = new List<MeasureModel>(),
+            AllNotes = new List<NoteModel>()
         };
 
-        // 整理進 Measures
-        var measureDict = new Dictionary<int, MeasureModel>();
-        foreach (var note in notes)
+        float beatsPerGrid = 1f / (FreeComposeData.GRID_RESOLUTION / FreeComposeData.BEATS_PER_MEASURE);
+        float secondsPerBeat = 60f / data.Bpm;
+
+        for (int m = 0; m < FreeComposeData.MEASURES; m++)
         {
-            if (!measureDict.ContainsKey(note.MeasureIndex))
+            var measure = new MeasureModel
             {
-                var measure = new MeasureModel { MeasureIndex = note.MeasureIndex };
-                measureDict[note.MeasureIndex] = measure;
-                model.Measures.Add(measure);
+                MeasureIndex = m + 1, // 改成從 1 開始
+                Notes = new List<NoteModel>()
+            };
+
+            int measureStart = m * FreeComposeData.GRID_RESOLUTION;
+
+            foreach (var kv in data.PlacedNotes)
+            {
+                int globalGrid = kv.Key;
+                if (globalGrid / FreeComposeData.GRID_RESOLUTION != m) continue;
+
+                int gridInMeasure = globalGrid % FreeComposeData.GRID_RESOLUTION;
+                NoteType type = kv.Value;
+                float beatInMeasure = gridInMeasure * beatsPerGrid;
+                float absoluteBeat = m * FreeComposeData.BEATS_PER_MEASURE + beatInMeasure;
+                float durationBeats = FreeComposeController.GetGridLength(type) * beatsPerGrid;
+                double targetTimeSec = absoluteBeat * secondsPerBeat;
+
+                var note = new NoteModel
+                {
+                    NoteId = $"n_{globalGrid}",
+                    MeasureIndex = m + 1, // 改成從 1 開始
+                    BeatInMeasure = beatInMeasure,
+                    AbsoluteBeat = absoluteBeat,
+                    DurationBeats = durationBeats,
+                    NoteType = type,
+                    TargetTimeSec = targetTimeSec,
+                    GridIndex = gridInMeasure,
+                    IsRest = IsRest(type)
+                };
+
+                measure.Notes.Add(note);
+                score.AllNotes.Add(note);
             }
-            measureDict[note.MeasureIndex].Notes.Add(note);
-            model.AllNotes.Add(note);
+
+            score.Measures.Add(measure);
         }
 
-        model.Measures.Sort((a, b) => a.MeasureIndex.CompareTo(b.MeasureIndex));
+        return score;
+    }
 
-        return model;
+    static bool IsRest(NoteType type)
+    {
+        return type == NoteType.RestWhole
+            || type == NoteType.RestHalf
+            || type == NoteType.RestQuarter
+            || type == NoteType.RestEighth
+            || type == NoteType.RestSixteenth
+            || type == NoteType.RestThirtySecond;
     }
 }

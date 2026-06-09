@@ -26,4 +26,10 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/SC_Result.unity
     guid: e0c5edc4957f67b428dd694a1c776926
+  - enabled: 1
+    path: Assets/Scenes/SC_Home.unity
+    guid: 733f3789c0ee34548b71151a40eda663
+  - enabled: 1
+    path: Assets/Scenes/SC_FreeCompose.unity
+    guid: e8b89ad14d0aea04985de9d8df0407be
   m_configObjects: {}
